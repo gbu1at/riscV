@@ -1,0 +1,459 @@
+import sys
+
+
+ADDR_LEN = 18 # длина адреса (в битах)
+CACHE_INDEX_LEN = 3 # длина индекса блока кэш-линий  (в битах)
+CACHE_LINE_SIZE = 64 # размер кэш-линии (в байтах)
+CACHE_LINE_COUNT = 32 # кол-во кэш-линий
+
+MEM_SIZE = 2 ** ADDR_LEN # размер памяти (в байтах)
+CACHE_SIZE = CACHE_LINE_SIZE * CACHE_LINE_COUNT # размер кэша, без учёта служебной информации (в байтах)
+
+CACHE_WAY = 2 ** CACHE_INDEX_LEN # ассоциативность
+CACHE_SETS = CACHE_LINE_COUNT // CACHE_WAY # кол-во блоков кэш-линий
+
+# CACHE_TAG_LEN = 7 # длина тэга адреса (в битах)
+# CACHE_OFFSET_LEN – длина смещения внутри кэш-линии (в битах)
+
+
+def printf(fmt, *args):
+    sys.stdout.write(fmt % args)
+
+
+def to_int32(x: int):
+    x %= 2 ** 32
+    if x >= 2 ** 31:
+        x = x - 2 ** 32
+    return x
+
+
+class LruCacheLine:
+    def __init__(self, size):
+        self.size = size
+        self.lru_cache = {}
+        self.access_order = []
+
+    def add(self, address):
+        if address in self.lru_cache:
+            self.access_order.remove(address)
+            self.access_order.append(address)
+            return True
+        else:
+            if len(self.lru_cache) >= self.size:
+                lru = self.access_order.pop(0)
+                del self.lru_cache[lru]
+            self.lru_cache[address] = True
+            self.access_order.append(address)
+            return False
+
+class BitpLruCacheLine:
+    def __init__(self, size):
+        self.size = size
+        self.mru = {}
+        self.access_order = []
+    
+    def add(self, address):
+        if address in self.mru:
+            return True
+        else:
+            if len(self.mru) == self.size - 1:
+                self.mru = {}
+            self.mru[address] = True
+
+            if len(self.access_order) < self.size:
+                self.access_order.append(address)
+            else:
+                for add in self.access_order:
+                    if add not in self.mru:
+                        self.access_order.remove(add)
+                        break
+            return False
+
+class Cache:
+    def __init__(self, CacheLine) -> None:
+        self.caches = [CacheLine(CACHE_WAY) for i in range(CACHE_SETS)]
+        self.cache_hit_instruction = 0
+        self.cache_total_instruction = 0
+
+        self.cache_hit_memory = 0
+        self.cache_total_memory = 0
+    
+    def add(self, address: int, type="inst") -> bool:
+        
+        assert(MEM_SIZE > address and address >= 0)
+
+        address = address - address % CACHE_LINE_SIZE
+
+        idx_adrress = (address // CACHE_LINE_SIZE) % CACHE_SETS
+        
+        val = self.caches[idx_adrress].add(address)
+
+        if type == "inst":
+            self.cache_total_instruction += 1
+            if val:
+                self.cache_hit_instruction += 1
+        else:
+            self.cache_total_memory += 1
+            if val:
+                self.cache_hit_memory += 1
+
+        return val
+    
+    def get_info(self):
+
+        cache_total = self.cache_total_memory + self.cache_total_instruction
+        cache_hit = self.cache_hit_instruction + self.cache_hit_memory
+
+        all_percent = 100 * cache_hit / cache_total
+        instruction_percent = 100 * self.cache_hit_instruction / self.cache_total_instruction
+        memory_percent = "nan%" if self.cache_total_memory == 0 else 100 * self.cache_hit_memory / self.cache_total_memory
+
+        return all_percent, instruction_percent, memory_percent
+
+
+class LruCache(Cache):
+    def __init__(self) -> None:
+        super().__init__(LruCacheLine)
+
+
+class BitpLruCache(Cache):
+    def __init__(self) -> None:
+        super().__init__(BitpLruCacheLine)
+
+class RiscVSimulator:
+    def __init__(self):
+        self.registers = {
+            "zero": 0,
+            "ra": 0,
+            "sp": 0,
+            "gp": 0,
+            "tp": 0,
+            "t0": 0,
+            "t1": 0,
+            "t2": 0,
+            "s0": 0,
+            "s1": 0,
+            "a0": 0,
+            "a1": 0,
+            "a2": 0,
+            "a3": 0,
+            "a4": 0,
+            "a5": 0,
+            "a6": 0,
+            "a7": 0,
+            "s2": 0,
+            "s3": 0,
+            "s4": 0,
+            "s5": 0,
+            "s6": 0,
+            "s7": 0,
+            "t3": 0,
+            "t4": 0,
+            "t5": 0,
+            "t6": 0
+        }
+
+        self.memory = {}
+        self.pc = 0x10000
+        self.lru_cache = LruCache()
+        self.bitsp_lru_cache = BitpLruCache()
+
+    def load_instructions(self, filename):
+        with open(filename, 'r') as file:
+            lines = file.readlines()
+            for line in lines:
+                if line.strip():
+                    instruction = line.strip()
+                    address = self.pc
+                    self.memory[address] = (instruction, "instruction")
+                    self.pc += 4
+
+    def execute(self):
+        self.pc = 0x10000
+        while True:
+            data = self.memory.get(self.pc)
+            if data is None or data[1] != "instruction":
+                return self.lru_cache.get_info(), self.bitsp_lru_cache.get_info()
+            
+            instruction = data[0]
+
+            self.lru_cache.add(self.pc, "inst")
+            self.bitsp_lru_cache.add(self.pc, "inst")
+
+            self.parse_and_execute(instruction)
+            self.pc += 4
+
+
+    def parse_and_execute(self, instruction: str):
+
+        opcode, parts = instruction.split(" ", 1)
+
+        parts = parts.split(",")
+        parts = [None] + [part.strip(" ") for part in parts]
+
+
+        if opcode == "lui":
+            rd, imm_str = parts[1], parts[2]
+            imm = int(imm_str)
+            self.registers[rd] = imm << 12
+
+        elif opcode == "auipc":
+            rd, imm_str = parts[1], parts[2]
+            imm = int(imm_str)
+            self.registers[rd] = (self.pc + (imm << 12)) & 0xFFFFFFFF
+
+        elif opcode == "jal":
+            rd, offset_str = parts[1], parts[2]
+
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            self.registers[rd] = self.pc + 4
+
+            self.pc += offset - 4
+
+        elif opcode == "jalr":
+            rd, rs1, offset_str = parts[1], parts[2], parts[3]
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+            self.registers[rd] = self.pc + 4
+            self.pc = (self.registers[rs1] + offset) & ~1
+
+        elif opcode == "beq":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+            if self.registers[rs1] == self.registers[rs2]:
+                self.pc += offset - 4
+
+        elif opcode == "bne":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+            
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            if self.registers[rs1] != self.registers[rs2]:
+                self.pc += offset - 4
+
+        elif opcode == "blt":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+            
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            if self.registers[rs1] < self.registers[rs2]:
+                self.pc += offset - 4
+
+        elif opcode == "bge":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+            
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            if self.registers[rs1] >= self.registers[rs2]:
+                self.pc += offset - 4
+
+        elif opcode == "bltu":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+            
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            if self.registers[rs1] < self.registers[rs2]:
+                self.pc += offset - 4
+
+        elif opcode == "bgeu":
+            rs1, rs2, offset_str = parts[1], parts[2], parts[3]
+
+            offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
+
+            if self.registers[rs1] >= self.registers[rs2]:
+                self.pc += offset - 4
+
+        # elif opcode == "lb":
+        #     ...
+
+        # elif opcode == "lh":
+        #     ...
+
+        elif opcode == "lw":
+            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            address = self.registers[rs1] + offset
+            cell = self.memory.get(address)
+            if cell is not None and cell[1] != "instruction":
+                self.registers[rd] = self.memory[address][0]
+                self.lru_cache.add(address, "mem")
+                self.bitsp_lru_cache.add(address, "mem")
+            else: assert(False)
+
+        # elif opcode == "lbu":
+        #     ...
+
+        # elif opcode == "lhu":
+        #     ...
+
+        # elif opcode == "sb":
+        #     rd, rs1, offset = parts[1], parts[2], int(parts[3])
+        #     address = self.registers[rs1] + offset
+        #     cell = self.memory.get(address)
+        #     if cell is None or cell[1] != "instruction":
+        #         self.memory[address] = (self.registers[rd] & 0xFF, "data")
+        #         if self.lru_cache.add(address):
+        #             self.lru_cache_hit_memory += 1
+        #         else:
+        #             self.lru_cache_miss_memory += 1
+        #     else: assert(False)
+
+        # elif opcode == "sh":
+        #     rd, rs1, offset = parts[1], parts[2], int(parts[3])
+        #     address = self.registers[rs1] + offset
+        #     cell = self.memory.get(address)
+        #     if cell is None or cell[1] != "instruction":
+        #         self.memory[address] = (self.registers[rd] & 0xFFFF, "data")
+        #         if self.lru_cache.add(address):
+        #             self.lru_cache_hit_memory += 1
+        #         else:
+        #             self.lru_cache_miss_memory += 1
+        #     else: assert(False)
+
+        elif opcode == "sw":
+            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            address = self.registers[rs1] + offset
+            cell = self.memory.get(address)
+            if cell is None or cell[1] != "instruction":
+                self.memory[address] = (self.registers[rd], "data")
+                self.lru_cache.add(address, "mem")
+                self.bitsp_lru_cache.add(address, "mem")
+            else: assert(False)
+
+        elif opcode == "addi":
+            rd, rs1, imm = parts[1], parts[2], parts[3]
+            imm = int(imm)
+            self.registers[rd] = to_int32(self.registers[rs1] + imm)
+
+        elif opcode == "slti":
+            rd, rs1, imm = parts[1], parts[2], parts[3]
+            imm = int(imm_str)
+            self.registers[rd] = int(self.registers[rs1] < imm)
+        
+        elif opcode == "xori":
+            rd, rs1, imm = parts[1], parts[2], parts[3]
+            imm = int(imm_str)
+            self.registers[rd] = self.registers[rs1] ^ imm
+                
+        elif opcode == "ori":
+            rd, rs1, imm = parts[1], parts[2], parts[3]
+            imm = int(imm_str)
+            self.registers[rd] = self.registers[rs1] | imm
+                
+        elif opcode == "andi":
+            rd, rs1, imm = parts[1], parts[2], parts[3]
+            imm = int(imm)
+            self.registers[rd] = self.registers[rs1] & imm
+                
+        elif opcode == "slli":
+            rd, rs1, shift_str = parts[1], parts[2], parts[3]
+            shift = int(shift_str)
+            self.registers[rd] = self.registers[rs1] >> shift
+                
+        elif opcode == "srli":
+            rd, rs1, shift_str = parts[1], parts[2], parts[3]
+            shift = int(shift_str)
+            self.registers[rd] = self.registers[rs1] >> shift
+                
+        elif opcode == "srai":
+            rd, rs1, shift_str = parts[1], parts[2], parts[3]
+            shift = int(shift_str)
+            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) >> shift
+        
+        elif opcode == "add":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = to_int32(self.registers[rs1] + self.registers[rs2])
+                
+        elif opcode == "sub":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = to_int32(self.registers[rs1] - self.registers[rs2])
+                
+        elif opcode == "sll":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            rs2 = rs2 & 0x1F
+            self.registers[rd] = self.registers[rs1] << rs2
+                
+        elif opcode == "slt":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = int(self.registers[rs1] < self.registers[rs2])
+                
+        elif opcode == "sltu":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = int((self.registers[rs1] & 0xFFFFFFFF) < (self.registers[rs2] & 0xFFFFFFFF))
+                
+        elif opcode == "xor":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = self.registers[rs1] ^ self.registers[rs2]
+                
+        elif opcode == "srl":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rs2] = self.registers[rs2] & 0x1F
+            self.registers[rd] = self.registers[rs1] >> self.registers[rs2]
+                
+        elif opcode == "sra":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rs2] = self.registers[rs2] & 0x1F
+            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) >> rs2
+                
+        elif opcode == "or":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = self.registers[rs1] | self.registers[rs2]
+                
+        elif opcode == "and":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = self.registers[rs1] & self.registers[rs2]
+                
+        elif opcode == "fence":
+            pass
+                
+        elif opcode == "ecall":
+            pass
+
+        elif opcode == "ebreak":
+            pass
+        
+        elif opcode == "mul":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = to_int32(self.registers[rs1] * self.registers[rs2])
+        
+        elif opcode == "mulh":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            result = self.registers[rs1] * self.registers[rs2]
+            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+
+        elif opcode == "mulhsu":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            result = self.registers[rs1] * (self.registers[rs2] & 0xFFFFFFFF)
+            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+
+        elif opcode == "mulhu":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            result = (self.registers[rs1] & 0xFFFFFFFF) * (self.registers[rs2] & 0xFFFFFFFF)
+            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+
+        elif opcode == "div":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = int(self.registers[rs1] / self.registers[rs2])
+
+        elif opcode == "divu":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) // (self.registers[rs2] & 0xFFFFFFFF)
+
+        elif opcode == "rem":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = int(self.registers[rs1] % self.registers[rs2])
+
+        elif opcode == "remu":
+            rd, rs1, rs2 = parts[1], parts[2], parts[3]
+            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) % (self.registers[rs2] & 0xFFFFFFFF)
+            
+        else:
+            assert(False)
+
+if __name__ == "__main__":
+    machine = RiscVSimulator()
+    machine.load_instructions("test_asm/test_asm_sum_array/sum_array1.asm")
+    lru_arg, bitplru_arg = machine.execute()
+    arg = lru_arg + bitplru_arg
+    fmt =  "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n        pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    print("replacement\thit rate\thit rate (inst)\thit rate (data)\n")
+    printf(fmt, *arg)
