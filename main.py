@@ -9,8 +9,9 @@ CACHE_LINE_COUNT = 32 # кол-во кэш-линий
 MEM_SIZE = 2 ** ADDR_LEN # размер памяти (в байтах)
 CACHE_SIZE = CACHE_LINE_SIZE * CACHE_LINE_COUNT # размер кэша, без учёта служебной информации (в байтах)
 
-CACHE_WAY = 2 ** CACHE_INDEX_LEN # ассоциативность
-CACHE_SETS = CACHE_LINE_COUNT // CACHE_WAY # кол-во блоков кэш-линий
+CACHE_SETS = 2 ** CACHE_INDEX_LEN  # кол-во блоков кэш-линий
+CACHE_WAY = CACHE_LINE_COUNT // CACHE_SETS # ассоциативность
+
 
 # CACHE_TAG_LEN = 7 # длина тэга адреса (в битах)
 # CACHE_OFFSET_LEN – длина смещения внутри кэш-линии (в битах)
@@ -85,6 +86,7 @@ class Cache:
         address = address - address % CACHE_LINE_SIZE
 
         idx_adrress = (address // CACHE_LINE_SIZE) % CACHE_SETS
+
         
         val = self.caches[idx_adrress].add(address)
 
@@ -92,10 +94,11 @@ class Cache:
             self.cache_total_instruction += 1
             if val:
                 self.cache_hit_instruction += 1
-        else:
+        elif type == "mem":
             self.cache_total_memory += 1
             if val:
                 self.cache_hit_memory += 1
+        else: assert(False)
 
         return val
     
@@ -106,7 +109,7 @@ class Cache:
 
         all_percent = 100 * cache_hit / cache_total
         instruction_percent = 100 * self.cache_hit_instruction / self.cache_total_instruction
-        memory_percent = "nan%" if self.cache_total_memory == 0 else 100 * self.cache_hit_memory / self.cache_total_memory
+        memory_percent = float("nan") if self.cache_total_memory == 0 else 100 * self.cache_hit_memory / self.cache_total_memory
 
         return all_percent, instruction_percent, memory_percent
 
@@ -156,7 +159,7 @@ class RiscVSimulator:
         self.memory = {}
         self.pc = 0x10000
         self.lru_cache = LruCache()
-        self.bitsp_lru_cache = BitpLruCache()
+        self.bitp_lru_cache = BitpLruCache()
 
     def load_instructions(self, filename):
         with open(filename, 'r') as file:
@@ -171,14 +174,15 @@ class RiscVSimulator:
     def execute(self):
         self.pc = 0x10000
         while True:
-            data = self.memory.get(self.pc)
-            if data is None or data[1] != "instruction":
-                return self.lru_cache.get_info(), self.bitsp_lru_cache.get_info()
-            
-            instruction = data[0]
 
             self.lru_cache.add(self.pc, "inst")
-            self.bitsp_lru_cache.add(self.pc, "inst")
+            self.bitp_lru_cache.add(self.pc, "inst")
+
+            data = self.memory.get(self.pc)
+            if data is None or data[1] != "instruction":
+                return self.lru_cache.get_info(), self.bitp_lru_cache.get_info()
+            
+            instruction = data[0]
 
             self.parse_and_execute(instruction)
             self.pc += 4
@@ -276,7 +280,7 @@ class RiscVSimulator:
             if cell is not None and cell[1] != "instruction":
                 self.registers[rd] = self.memory[address][0]
                 self.lru_cache.add(address, "mem")
-                self.bitsp_lru_cache.add(address, "mem")
+                self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
 
         # elif opcode == "lbu":
@@ -316,7 +320,7 @@ class RiscVSimulator:
             if cell is None or cell[1] != "instruction":
                 self.memory[address] = (self.registers[rd], "data")
                 self.lru_cache.add(address, "mem")
-                self.bitsp_lru_cache.add(address, "mem")
+                self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
 
         elif opcode == "addi":
@@ -347,7 +351,7 @@ class RiscVSimulator:
         elif opcode == "slli":
             rd, rs1, shift_str = parts[1], parts[2], parts[3]
             shift = int(shift_str)
-            self.registers[rd] = self.registers[rs1] >> shift
+            self.registers[rd] = self.registers[rs1] << shift
                 
         elif opcode == "srli":
             rd, rs1, shift_str = parts[1], parts[2], parts[3]
@@ -449,11 +453,17 @@ class RiscVSimulator:
         else:
             assert(False)
 
+        self.registers["zero"] = 0
+
 if __name__ == "__main__":
     machine = RiscVSimulator()
-    machine.load_instructions("test_asm/test_asm_sum_array/sum_array1.asm")
+    _, filename = sys.argv
+    machine.load_instructions(f"test_asm/{filename}.asm")
     lru_arg, bitplru_arg = machine.execute()
     arg = lru_arg + bitplru_arg
-    fmt =  "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n        pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
-    print("replacement\thit rate\thit rate (inst)\thit rate (data)\n")
-    printf(fmt, *arg)
+    fmt =  "%3.5f%%\t%3.5f%%\t%3.5f%%\n%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    
+    result = fmt % arg
+
+    with open(f"out_cache_info/{filename}.txt", "w") as f:
+        f.write(result)
