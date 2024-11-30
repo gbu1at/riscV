@@ -181,7 +181,8 @@ class RiscVSimulator:
             data = self.memory.get(self.pc)
             if data is None or data[1] != "instruction":
                 return self.lru_cache.get_info(), self.bitp_lru_cache.get_info()
-            
+
+
             instruction = data[0]
 
             self.parse_and_execute(instruction)
@@ -461,7 +462,11 @@ if __name__ == "__main__":
     machine.load_instructions(f"test_asm/{filename}.asm")
     lru_arg, bitplru_arg = machine.execute()
     arg = lru_arg + bitplru_arg
-    fmt =  "%3.5f%%\t%3.5f%%\t%3.5f%%\n%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    fmt_0 = "replacement\thit rate\thit rate (inst)\thit rate (data)\n"
+    fmt_1 = "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    fmt_2 = "       pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    fmt =  fmt_0 + fmt_1 + fmt_2
+    
     
     result = fmt % arg
 

@@ -1,0 +1,3 @@
+replacement	hit rate	hit rate (inst)	hit rate (data)
+        LRU	94.28571%	93.71901%	96.00000%
+       pLRU	93.54037%	93.71901%	93.00000%

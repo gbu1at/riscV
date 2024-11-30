@@ -1,4 +1,6 @@
-from functools import lru_cache
+i = 5
 
 
-l = lru_cache(4)
+a = [1000]
+
+if i == 5:
