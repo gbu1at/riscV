@@ -12,9 +12,8 @@ CACHE_SIZE = CACHE_LINE_SIZE * CACHE_LINE_COUNT # размер кэша, без 
 CACHE_SETS = 2 ** CACHE_INDEX_LEN  # кол-во блоков кэш-линий
 CACHE_WAY = CACHE_LINE_COUNT // CACHE_SETS # ассоциативность
 
-
-# CACHE_TAG_LEN = 7 # длина тэга адреса (в битах)
-# CACHE_OFFSET_LEN – длина смещения внутри кэш-линии (в битах)
+CACHE_OFFSET_LEN = 6 # log2(CACHE_LINE_SIZE)
+CACHE_TAG_LEN = ADDR_LEN - CACHE_OFFSET_LEN - CACHE_INDEX_LEN
 
 
 def printf(fmt, *args):
@@ -49,35 +48,33 @@ class LruCacheLine:
 
 class BitpLruCacheLine:
     def __init__(self, size):
+        
+
         self.size = size
         self.mru = {}
         self.access_order = []
     
     def add(self, address):
         if address in self.mru:
-            self.access_order.remove(address)
-            self.access_order.append(address)
             return True
         elif address in self.access_order:
-            self.access_order.remove(address)
-            self.access_order.append(address)
             if len(self.mru) == self.size - 1:
                 self.mru = {}
             self.mru[address] = True
             return True
         else:
-            if len(self.mru) == self.size - 1:
-                self.mru = {}
-            self.mru[address] = True
-
             if len(self.access_order) < self.size:
                 self.access_order.append(address)
             else:
-                for add in self.access_order:
+                for i, add in enumerate(self.access_order):
                     if add not in self.mru:
-                        self.access_order.remove(add)
+                        self.access_order[i] = address
                         break
-                self.access_order.append(address)
+            
+            if len(self.mru) == self.size - 1:
+                self.mru = {}
+            self.mru[address] = True
+            
             return False
 
 class Cache:
@@ -91,29 +88,30 @@ class Cache:
     
     def add(self, address: int, type="inst") -> bool:
 
-        address = address - address % CACHE_LINE_SIZE
+        tag_address = address - address % CACHE_LINE_SIZE
 
-        idx_adrress = (address // CACHE_LINE_SIZE) % CACHE_SETS
+        idx_adrress = (tag_address // CACHE_LINE_SIZE) % CACHE_SETS
 
-        
-        val = self.caches[idx_adrress].add(address)
+        hit = self.caches[idx_adrress].add(tag_address)
 
         if type == "inst":
             self.cache_total_instruction += 1
-            if val:
+            if hit:
                 self.cache_hit_instruction += 1
         elif type == "mem":
             self.cache_total_memory += 1
-            if val:
+            if hit:
                 self.cache_hit_memory += 1
         else: assert(False)
 
-        return val
+        return hit
     
     def get_info(self):
 
         cache_total = self.cache_total_memory + self.cache_total_instruction
         cache_hit = self.cache_hit_instruction + self.cache_hit_memory
+
+        # print(self.cache_hit_instruction, self.cache_total_instruction)
 
         all_percent = 100 * cache_hit / cache_total
         instruction_percent = 100 * self.cache_hit_instruction / self.cache_total_instruction
@@ -202,13 +200,13 @@ class RiscVSimulator:
 
             self.correct_memory_address(self.pc)
 
-            self.lru_cache.add(self.pc, "inst")
-            self.bitp_lru_cache.add(self.pc, "inst")
 
             data = self.memory.get(self.pc)
             if data is None or data[1] != "instruction":
                 return self.lru_cache.get_info(), self.bitp_lru_cache.get_info()
 
+            self.lru_cache.add(self.pc, "inst")
+            self.bitp_lru_cache.add(self.pc, "inst")
 
             instruction = data[0]
 
@@ -217,9 +215,12 @@ class RiscVSimulator:
 
 
     def parse_and_execute(self, instruction: str):
-        # print(instruction)
         if instruction in ["ecall", "ebreak"]:
             return
+        
+        # print(instruction)
+        # print(self.registers["x9"])
+
         opcode, parts = instruction.split(" ", 1)
 
         parts = parts.split(",")
@@ -239,12 +240,10 @@ class RiscVSimulator:
 
         elif opcode == "jal":
             rd, offset_str = parts[1], parts[2]
-
             offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
-
             self.registers[rd] = self.pc + 4
-
             self.pc += offset - 4
+
 
         elif opcode == "jalr":
             rd, rs1, offset_str = parts[1], parts[2], parts[3]
@@ -257,6 +256,7 @@ class RiscVSimulator:
             offset = int(offset_str) if not offset_str.startswith('0x') else int(offset_str, 16)
             if self.registers[rs1] == self.registers[rs2]:
                 self.pc += offset - 4
+
 
         elif opcode == "bne":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
@@ -310,11 +310,12 @@ class RiscVSimulator:
 
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
-                if cell is None:
-                    self.registers[rd] = 8736548
-                else:
-                    b = cell[0].to_bytes(2, byteorder='little', signed=True)
-                    self.registers[rd] = int.from_bytes(b, byteorder='little', signed=True)
+                # if cell is None:
+                self.registers[rd] = 0
+                # else:
+                #     extned = 0xFFFF0000 if cell[0] < 0 else 0
+                #     b = (cell[0] & 0xFFFF) | extned
+                #     self.registers[rd] = b
                 self.lru_cache.add(address, "mem")
                 self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
@@ -327,9 +328,10 @@ class RiscVSimulator:
 
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
-                self.registers[rd] = 8736548 if cell is None else cell[0]
+                # self.registers[rd] = 0 if cell is None else cell[0]
                 self.lru_cache.add(address, "mem")
                 self.bitp_lru_cache.add(address, "mem")
+                self.registers[rd] = 0
             else: assert(False)
 
         elif opcode == "lb":
@@ -340,15 +342,16 @@ class RiscVSimulator:
 
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
-                if cell is None:
-                    self.registers[rd] = 0
-                else:
-                    # print(cell[0])
-                    extned = 0xFFFFFFF0 if cell[0] < 0 else 0
-                    b = (cell[0] & 0xF) | extned
+                # if cell is None:
+                self.registers[rd] = 0
+                # else:
+                #     # print(cell[0])
+                #     extned = 0xFFFFFFF0 if cell[0] < 0 else 0
+                #     # print(cell[0] & 0x0000000F)
+                #     b = (cell[0] & 0xF) | extned
 
-                    # print(b)
-                    self.registers[rd] = b
+                #     self.registers[rd] = b
+                # print(machine.registers["x2"])
                 self.lru_cache.add(address, "mem")
                 self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
@@ -363,11 +366,11 @@ class RiscVSimulator:
 
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
-                if cell is None:
-                    self.registers[rd] = 0
-                else:
-                    b = cell[0].to_bytes(1, byteorder='little', signed=False)
-                    self.registers[rd] = int.from_bytes(b, byteorder='little', signed=False)
+                # if cell is None:
+                self.registers[rd] = 0
+                # else:
+                #     b = cell[0].to_bytes(1, byteorder='little', signed=False)
+                #     self.registers[rd] = int.from_bytes(b, byteorder='little', signed=False)
                 self.lru_cache.add(address, "mem")
                 self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
@@ -380,11 +383,11 @@ class RiscVSimulator:
 
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
-                if cell is None:
-                    self.registers[rd] = 8736548
-                else:
-                    b = cell[0].to_bytes(2, byteorder='little', signed=False)
-                    self.registers[rd] = int.from_bytes(b, byteorder='little', signed=False)
+                # if cell is None:
+                self.registers[rd] = 0
+                # else:
+                #     b = cell[0].to_bytes(2, byteorder='little', signed=False)
+                #     self.registers[rd] = int.from_bytes(b, byteorder='little', signed=False)
                 self.lru_cache.add(address, "mem")
                 self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
@@ -606,29 +609,16 @@ class RiscVSimulator:
 if __name__ == "__main__":
     machine = RiscVSimulator()
     _, flag, filename = sys.argv
-    if (flag == "b"):
-        machine.load_instructions(f"test_asm/{filename}.asm")
-        lru_arg, bitplru_arg = machine.execute()
-        arg = lru_arg + bitplru_arg
-        fmt_0 = "replacement\thit rate\thit rate (inst)\thit rate (data)\n"
-        fmt_1 = "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
-        fmt_2 = "       pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
-        fmt =  fmt_0 + fmt_1 + fmt_2
-        
-        
-        result = fmt % arg
+    machine.load_instructions(filename)
+    lru_arg, bitplru_arg = machine.execute()
+    arg = lru_arg + bitplru_arg
+    fmt_0 = "replacement\thit rate\thit rate (inst)\thit rate (data)\n"
+    fmt_1 = "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    fmt_2 = "       pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
+    fmt =  fmt_0 + fmt_1 + fmt_2
+    
+    
+    result = fmt % arg
+    print(result)
 
-        with open(f"out_cache_info/{filename}.out", "w") as f:
-            f.write(result)
-    else:
-        machine.load_instructions(filename)
-        lru_arg, bitplru_arg = machine.execute()
-        arg = lru_arg + bitplru_arg
-        fmt_0 = "replacement\thit rate\thit rate (inst)\thit rate (data)\n"
-        fmt_1 = "        LRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
-        fmt_2 = "       pLRU\t%3.5f%%\t%3.5f%%\t%3.5f%%\n"
-        fmt =  fmt_0 + fmt_1 + fmt_2
-        
-        
-        result = fmt % arg
-        print(result)
+    # print(machine.registers["x2"])
