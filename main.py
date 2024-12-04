@@ -129,11 +129,9 @@ class BitpLruCache(Cache):
     def __init__(self) -> None:
         super().__init__(BitpLruCacheLine)
 
-class RiscVSimulator:
-    def __init__(self):
-        self.registers = {}
 
-        self.registers_aliases = {
+
+REGISTERS_ALIASES = {
             "zero": "x0",
             "ra": "x1",
             "sp": "x2",
@@ -165,11 +163,16 @@ class RiscVSimulator:
             "t3": "x28",
             "t4": "x29",
             "t5": "x30",
-            "t6": "x31"
+            "t6": "x31", 
+            "x0": "x0" , "x1": "x1" , "x2": "x2" , "x3": "x3" , "x4": "x4" , "x5": "x5" , "x6": "x6" , "x7": "x7" , "x8": "x8" , "x9": "x9" , "x10": "x10" , "x11": "x11" , "x12": "x12" , "x13": "x13" , "x14": "x14" , "x15": "x15" , "x16": "x16" , "x17": "x17" , "x18": "x18" , "x19": "x19" , "x20": "x20" , "x21": "x21" , "x22": "x22" , "x23": "x23" , "x24": "x24" , "x25": "x25" , "x26": "x26" , "x27": "x27" , "x28": "x28" , "x29": "x29" , "x30": "x30", "x31": "x31"
         }
 
+
+class RiscVSimulator:
+    def __init__(self):
+        self.registers = {}
+
         for i in range(32):
-            self.registers_aliases[f"x{i}"] = f"x{i}"
             self.registers[f"x{i}"] = 0
 
         self.memory = {}
@@ -182,17 +185,18 @@ class RiscVSimulator:
     def load_instructions(self, filename):
         with open(filename, 'r') as file:
             lines = file.readlines()
+            instructions = []
             for line in lines:
                 if line.strip():
                     instruction = line.strip()
+                    instructions.append(instruction)
                     address = self.pc
                     self.memory[address] = (instruction, "instruction")
                     self.pc += 4
+        return instructions
     
     def correct_memory_address(self, address):
-        # print(address, MEM_SIZE)
         assert(MEM_SIZE > address and address >= 0)
-        # pass
 
     def execute(self):
         self.pc = 0x10000
@@ -226,7 +230,7 @@ class RiscVSimulator:
         parts = parts.split(",")
         parts = [None] + [part.strip(" ") for part in parts]
 
-        parts = [part if part not in self.registers_aliases else self.registers_aliases[part] for part in parts]
+        parts = [part if part not in REGISTERS_ALIASES else REGISTERS_ALIASES[part] for part in parts]
 
         if opcode == "lui":
             rd, imm_str = parts[1], parts[2]
@@ -406,7 +410,7 @@ class RiscVSimulator:
         #     else: assert(False)
 
         elif opcode == "sw":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1 = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             # print("sw", self.registers[rs1])
@@ -424,7 +428,7 @@ class RiscVSimulator:
             else: assert(False)
 
         elif opcode == "sb":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1  = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -437,7 +441,7 @@ class RiscVSimulator:
             else: assert(False)
 
         elif opcode == "sh":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1 = parts[1], int(parts[2]), parts[3]
 
             # print(offset)
             address = self.registers[rs1] + offset
@@ -606,10 +610,245 @@ class RiscVSimulator:
 
         self.registers["x0"] = 0
 
+
+def get_last_N_bits(number, N):
+    assert(N > 0)
+    last_N_bits = int(number) & ((1 << N) - 1)
+    binary_string = bin(last_N_bits)[2:]
+    padded_bits = binary_string.zfill(N)
+    return padded_bits
+
+def get_segment_bits(number:str, l, r):
+    assert(r > l)
+    if number.startswith("0x"):
+        number = int(number, 16)
+    seg_bits = ((int(number) + 2 ** 33) & ((1 << r) - 1)) >> l
+    binary_string = bin(seg_bits)[2:]
+    padded_bits = binary_string.zfill(r - l)
+    return padded_bits
+
+
+
+instruction_opcode = {
+    "add":  {"opcode": "0110011"},
+    "addi": {"opcode": "0010011"},
+    "sub":  {"opcode": "0110011"},
+
+    "and":  {"opcode": "0110011"},
+    "andi": {"opcode": "0b0010011"}, 
+    "or":   {"opcode": "0b0110011"},  
+    "ori":  {"opcode": "0b0010011"},
+    "xor":  {"opcode": "0b0110011"},  
+    "xori": {"opcode": "0b0010011"},
+
+    "sll":   {"opcode": "0110011"},
+    "slli":  {"opcode": "0010011"},
+    "srl":   {"opcode": "0110011"},
+    "srli":  {"opcode": "0010011"},
+    "sra":   {"opcode": "0110011"},
+    "srai":  {"opcode": "0010011"},
+
+    "slt":   {"opcode": "0110011"},
+    "slti":  {"opcode": "0010011"},
+    "sltu":  {"opcode": "0110011"},
+    "sltiu": {"opcode": "0010011"},
+
+    "beq":  {"opcode": "1100011"},
+    "bne":  {"opcode": "1100011"},
+    "blt":  {"opcode": "1100011"},
+    "bge":  {"opcode": "1100011"},
+    "bltu": {"opcode": "1100011"},
+    "bgeu": {"opcode": "1100011"},
+
+    "lb":   {"opcode": "0000011"},
+    "lh":   {"opcode": "0000011"},
+    "lw":   {"opcode": "0000011"},
+    "lbu":  {"opcode": "0000011"},
+    "lhu":  {"opcode": "0000011"},
+
+    "sb":   {"opcode": "0100011"},
+    "sh":   {"opcode": "0100011"},
+    "sw":   {"opcode": "0100011"},
+
+    "jal": {"opcode": "1101111"}
+}
+
+r_type_instructions = {
+    "add":   {"funct7": "0000000", "funct3": "000"},
+    "sub":   {"funct7": "0100000", "funct3": "000"},
+    "sll":   {"funct7": "0000000", "funct3": "001"},
+    "slt":   {"funct7": "0000000", "funct3": "010"},
+    "sltu":  {"funct7": "0000000", "funct3": "011"},
+    "xor":   {"funct7": "0000000", "funct3": "100"},
+    "srl":   {"funct7": "0000000", "funct3": "101"},
+    "sra":   {"funct7": "0100000", "funct3": "101"},
+    "or":    {"funct7": "0000000", "funct3": "110"},
+    "and":   {"funct7": "0000000", "funct3": "111"},
+    "mul":   {"funct7":"0000001","funct3":"000"},
+    "div":   {"funct7":"0000010","funct3":"100"},
+    "rem":   {"funct7":"0000011","funct3":"100"},
+    "mulh":  {"funct7":"0000100","funct3":"000"},
+    "mulhsu":{"funct7":"0000101","funct3":"000"},
+    "mulhu": {"funct7":"0000110","funct3":"000"},
+    "divu":  {"funct7":"0000111","funct3":"100"},
+    "remu":  {"funct7":"0001000","funct3":"100"}
+}
+
+i_type_instructions = {
+    "addi":   {"funct3": "000"},
+    "slti":   {"funct3": "010"},
+    "sltiu":  {"funct3": "011"},
+    "xori":   {"funct3": "100"},
+    "ori":    {"funct3": "110"},
+    "andi":   {"funct3": "111"},
+    "lb":     {"funct3": "000"},
+    "lh":     {"funct3": "001"},
+    "lw":     {"funct3": "010"},
+    "lbu":    {"funct3": "100"},
+    "lhu":    {"funct3": "101"}
+}
+
+s_type_instructions = {
+    "sb":   {"funct3": "000"},
+    "sh":   {"funct3": "001"},
+    "sw":   {"funct3": "010"},
+    "sd":   {"funct3": "011"}
+}
+
+b_type_instructions = {
+    "beq":   {"funct3": "000"},
+    "bne":   {"funct3": "001"},
+    "blt":   {"funct3": "100"},
+    "bge":   {"funct3": "101"},
+    "bltu":  {"funct3": "110"},
+    "bgeu":  {"funct3": "111"}
+}
+
+registers_code = {f"x{i}": get_last_N_bits(i, 5) for i in range(32)}
+
+r_type_command = "add, sub, sll, slt, sltu, xor, srl, sra, or, and".split(", ")
+i_type_command = "addi, slti, sltiu, xori, ori, andi, lb, lh, lw, lbu, lhu, slli, srli, srai".split(", ")
+s_type_command = "sb, sh, sw".split(", ")
+b_type_command = "beq, bne, blt, bge, bltu, bgeu".split(", ")
+u_type_command = "lui, auipc".split(", ")
+j_type_command = "jal, jalr".split(", ")
+
+
+def reverse(s):
+    return "".join(reversed(s))
+
+def encode_riscv_instruction(instruction):
+
+    if instruction in ["ecall", "ebreak"]:
+        assert(False)
+
+    cmd, parts = instruction.split(" ", 1)
+
+    parts = parts.split(",")
+    parts = [None] + [part.strip(" ") for part in parts]
+
+    parts = [part if part not in REGISTERS_ALIASES else REGISTERS_ALIASES[part] for part in parts]
+
+    cmd_opcode = instruction_opcode[cmd]["opcode"]
+
+
+    res = ""
+
+    if cmd in r_type_command:
+        res =   r_type_instructions[cmd]["funct7"]  +\
+                        registers_code[parts[3]]    +\
+                        registers_code[parts[2]]    +\
+                r_type_instructions[cmd]["funct3"]  +\
+                        registers_code[parts[1]]    +\
+                        cmd_opcode
+
+    elif cmd in i_type_command:
+        bits = reverse(get_segment_bits(parts[3], 0, 12))
+        res =           reverse(bits[0:12]) +\
+                        registers_code[parts[2]]      +\
+                        i_type_instructions[cmd]["funct3"]      +\
+                        registers_code[parts[1]]      +\
+                        cmd_opcode
+
+    elif cmd in s_type_command:
+        bits = reverse(get_segment_bits(parts[2], 0, 12))
+        res  =          reverse(bits[5:12])                   +\
+                        registers_code[parts[1]]      +\
+                        registers_code[parts[3]]      +\
+                        s_type_instructions[cmd]["funct3"]      +\
+                        reverse(bits[0:5]) +\
+                        cmd_opcode
+
+    elif cmd in b_type_command:
+        bits = reverse(get_segment_bits(parts[3], 0, 13))
+        res =       reverse(bits[5:11] + bits[12]) +\
+                    registers_code[parts[2]]      +\
+                    registers_code[parts[1]]      +\
+                    b_type_instructions[cmd]["funct3"]      +\
+                    reverse(bits[11] + bits[1:5]) +\
+                    cmd_opcode
+
+    elif cmd in u_type_command:
+        bits = reverse(get_segment_bits(parts[2], 0, 32))
+        res =       reverse(bits[12:32])       +\
+                    registers_code[parts[1]]                    +\
+                    cmd_opcode
+        
+    elif cmd in j_type_command:
+        if cmd == "jal":
+            bits = reverse(get_segment_bits(parts[2], 0, 21))
+            res =       reverse(bits[12:20] + bits[11] + bits[1:11] + bits[20])            +\
+                        registers_code[parts[1]]                                           +\
+                        cmd_opcode
+        
+
+        elif cmd == "jalr":
+            bits = reverse(get_segment_bits(parts[3], 0, 12))
+            res =       reverse(bits)                   +\
+                        registers_code[parts[2]]        +\
+                        "000"                           +\
+                        registers_code[parts[1]]        +\
+                        "1100111"
+    
+    else:
+        assert(False)
+
+    return res
+
+
+
+def binary_to_hex(binary_string):
+    assert(len(binary_string) == 32)
+    byte_array = reversed(bytearray(int(binary_string[i:i + 8], 2) for i in range(0, len(binary_string), 8)))
+    hex_string = ' '.join(f"{byte:02X}" for byte in byte_array)
+    return hex_string
+
+
 if __name__ == "__main__":
     machine = RiscVSimulator()
-    _, flag, filename = sys.argv
-    machine.load_instructions(filename)
+    _, *args = sys.argv
+    
+
+    filename = ""
+    bin_filename = ""
+
+    write_in_bin_file = False
+
+    if len(args) == 2:
+        if args[0] == "--asm":
+            filename = args[1]
+        else: assert(False)
+
+    if len(args) == 4:
+        if args[0] == "--asm" and args[2] == "--bin":
+            filename = args[1]
+            bin_filename = args[3]
+            write_in_bin_file = True
+        else: assert(False)
+
+
+    instructions = machine.load_instructions(filename)
+
     lru_arg, bitplru_arg = machine.execute()
     arg = lru_arg + bitplru_arg
     fmt_0 = "replacement\thit rate\thit rate (inst)\thit rate (data)\n"
@@ -621,4 +860,11 @@ if __name__ == "__main__":
     result = fmt % arg
     print(result)
 
-    # print(machine.registers["x2"])
+
+    if write_in_bin_file:
+        with open(bin_filename, "w") as file:
+            for inst in instructions:
+                inst_bin_str = encode_riscv_instruction(inst)
+                inst_hex_str = binary_to_hex(inst_bin_str)
+                file.write(inst_hex_str + "\n")
+
