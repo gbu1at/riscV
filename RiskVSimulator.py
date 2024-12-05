@@ -133,10 +133,6 @@ class RiscVSimulator:
             if self.registers[rs1] >= self.registers[rs2]:
                 self.pc += offset - 4
 
-
-
-
-
         elif opcode == "lh":
             rd, offset,  rs1  = parts[1], to_int32(parts[2]), parts[3]
             address = self.registers[rs1] + offset
