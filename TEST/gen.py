@@ -1,7 +1,7 @@
 from random import randint
 import random
 import sys
-from gen_rnd_name import generate_funny_name
+from TEST.gen_rnd_name import generate_funny_name
 from main import *
 
 def generate_test(N, dir="unusual_tests"):
