@@ -58,16 +58,30 @@ REGISTERS_ALIASES = {
 
 
 instruction_opcode = {
+    "mul": {"opcode": "0110011"},
+    "mulh": {"opcode": "0110011"},
+    "mulhsu": {"opcode": "0110011"},
+    "mulhu": {"opcode": "0110011"},
+    "div": {"opcode": "0110011"},
+    "divu": {"opcode": "0110011"},
+    "rem": {"opcode": "0110011"},
+    "remu": {"opcode": "0110011"},
+
+
+    "lui": {"opcode": "0110111"},
+    "auipc": {"opcode": "0010111"},
+    "jalr": {"opcode": "1100111"},
+
     "add":  {"opcode": "0110011"},
     "addi": {"opcode": "0010011"},
     "sub":  {"opcode": "0110011"},
 
     "and":  {"opcode": "0110011"},
-    "andi": {"opcode": "0b0010011"}, 
-    "or":   {"opcode": "0b0110011"},  
-    "ori":  {"opcode": "0b0010011"},
-    "xor":  {"opcode": "0b0110011"},  
-    "xori": {"opcode": "0b0010011"},
+    "andi": {"opcode": "0010011"}, 
+    "or":   {"opcode": "0110011"},  
+    "ori":  {"opcode": "0010011"},
+    "xor":  {"opcode": "0110011"},  
+    "xori": {"opcode": "0010011"},
 
     "sll":   {"opcode": "0110011"},
     "slli":  {"opcode": "0010011"},
@@ -163,13 +177,20 @@ m_type_instructions = {
     "remu":  {"funct3": "111"}
 }
 
+si_type_instructions = {
+    "slli":   {"funct3": "001", "code": "0000000"},
+    "srli":   {"funct3": "101", "code": "0000000"},
+    "srai":   {"funct3": "101", "code": "0100000"}
+}
+
+
 registers_code = {f"x{i}": get_last_N_bits(i, 5) for i in range(32)}
 
 r_type_command = "add, sub, sll, slt, sltu, xor, srl, sra, or, and".split(", ")
-i_type_command = "addi, slti, sltiu, xori, ori, andi, lb, lh, lw, lbu, lhu, slli, srli, srai".split(", ")
+i_type_command = "addi, slti, sltiu, xori, ori, andi, lb, lh, lw, lbu, lhu".split(", ")
 s_type_command = "sb, sh, sw".split(", ")
 b_type_command = "beq, bne, blt, bge, bltu, bgeu".split(", ")
 u_type_command = "lui, auipc".split(", ")
 j_type_command = "jal, jalr".split(", ")
 m_type_command = "mul, mulh, mulhsu, mulhu, div, divu, rem, remu".split(", ")
-
+si_type_command = "slli, srli, srai".split(", ")

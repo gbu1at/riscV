@@ -32,7 +32,7 @@ def reverse(s):
 
 def binary_to_hex(binary_string):
     assert(len(binary_string) == 32)
-    byte_array = reversed(bytearray(to_int32(binary_string[i:i + 8], 2) for i in range(0, len(binary_string), 8)))
+    byte_array = reversed(bytearray(int(binary_string[i:i + 8], 2) for i in range(0, len(binary_string), 8)))
     hex_string = ' '.join(f"{byte:02X}" for byte in byte_array)
     return hex_string
 

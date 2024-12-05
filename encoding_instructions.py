@@ -5,7 +5,10 @@ from functions import *
 def encode_riscv_instruction(instruction):
 
     if instruction in ["ecall", "ebreak"]:
-        assert(False)
+        if instruction == "ebreak":
+            return "00000000000100000000000001110011"
+        else:
+            return "00000000000000000000000001110011"
 
     cmd, parts = instruction.split(" ", 1)
 
@@ -28,9 +31,12 @@ def encode_riscv_instruction(instruction):
                         cmd_opcode
 
     elif cmd in i_type_command:
-        bits = reverse(get_segment_bits(parts[3], 0, 12))
+        i, j = 3, 2
+        if cmd in ["lb", "lh", "lw", "lbu", "lhu"]:
+            i, j = 2, 3
+        bits = reverse(get_segment_bits(parts[i], 0, 12))
         res =           reverse(bits[0:12]) +\
-                        registers_code[parts[2]]      +\
+                        registers_code[parts[j]]      +\
                         i_type_instructions[cmd]["funct3"]      +\
                         registers_code[parts[1]]      +\
                         cmd_opcode
@@ -82,6 +88,15 @@ def encode_riscv_instruction(instruction):
                         m_type_instructions[cmd]["funct3"]                         +\
                         registers_code[parts[1]]        +\
                         "0111011"
+    
+    elif cmd in si_type_command:
+        bits = reverse(get_segment_bits(parts[3], 0, 5))
+        res =           si_type_instructions[cmd]["code"]         +\
+                        reverse(bits)                             +\
+                        registers_code[parts[2]]                  +\
+                        si_type_instructions[cmd]["funct3"] +\
+                        registers_code[parts[1]]                  +\
+                        "0010011"
     
     else:
         assert(False)

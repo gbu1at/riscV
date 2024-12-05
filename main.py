@@ -27,7 +27,7 @@ if __name__ == "__main__":
             filename = args[1]
             bin_filename = args[3]
             write_in_bin_file = True
-        if args[2] == "--asm" and args[1] == "--bin":
+        elif args[2] == "--asm" and args[0] == "--bin":
             filename = args[3]
             bin_filename = args[1]
             write_in_bin_file = True
@@ -52,5 +52,5 @@ if __name__ == "__main__":
             for inst in instructions:
                 inst_bin_str = encode_riscv_instruction(inst)
                 inst_hex_str = binary_to_hex(inst_bin_str)
-                file.write(inst_hex_str + "\n")
+                file.write(inst_hex_str.lower() + "\n")
 
