@@ -1,4 +1,4 @@
-def to_int32(x: int):
+def to_int32(x):
     if isinstance(x, str):
         if x.startswith("0x"):
             x = int(x, 16)

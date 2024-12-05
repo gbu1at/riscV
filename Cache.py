@@ -1,12 +1,21 @@
 from setting import *
 
-class LruCacheLine:
-    def __init__(self, size):
+
+
+class CacheLine:
+    def __init__(self, size) -> None:
         self.size = size
+    def add(self, addres) -> bool:
+        pass
+
+
+class LruCacheLine(CacheLine):
+    def __init__(self, size):
+        super().__init__(size)
         self.lru_cache = {}
         self.access_order = []
 
-    def add(self, address):
+    def add(self, address) -> bool:
         if address in self.lru_cache:
             self.access_order.remove(address)
             self.access_order.append(address)
@@ -19,15 +28,13 @@ class LruCacheLine:
             self.access_order.append(address)
             return False
 
-class BitpLruCacheLine:
+class BitpLruCacheLine(CacheLine):
     def __init__(self, size):
-        
-
-        self.size = size
+        super().__init__(size)
         self.mru = {}
         self.access_order = []
     
-    def add(self, address):
+    def add(self, address) -> bool:
         if address in self.mru:
             return True
         elif address in self.access_order:
@@ -51,8 +58,8 @@ class BitpLruCacheLine:
             return False
 
 class Cache:
-    def __init__(self, CacheLine) -> None:
-        self.caches = [CacheLine(CACHE_WAY) for i in range(CACHE_SETS)]
+    def __init__(self, cacheLine: CacheLine) -> None:
+        self.caches = [cacheLine(CACHE_WAY) for i in range(CACHE_SETS)]
         self.cache_hit_instruction = 0
         self.cache_total_instruction = 0
 
