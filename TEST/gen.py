@@ -1,8 +1,10 @@
 from random import randint
 import random
 import sys
-from TEST.gen_rnd_name import generate_funny_name
-from main import *
+from gen_rnd_name import generate_funny_name
+import sys
+sys.path.insert(1, '../')
+from RiskVSimulator import *
 
 def generate_test(N, dir="unusual_tests"):
     def get_generate_instruction(N):

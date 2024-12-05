@@ -1,4 +1,6 @@
-from main import *
+import sys
+sys.path.insert(1, '../')
+from RiskVSimulator import *
 import os
 import sys
 

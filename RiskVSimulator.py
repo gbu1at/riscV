@@ -20,7 +20,7 @@ class RiscVSimulator:
     def load_instructions(self, filename):
         with open(filename, 'r') as file:
             text = file.read()
-            lines = clean_text(text)
+            lines = clean_text(text).split("\n")
             instructions = []
             for line in lines:
                 if line.strip():
