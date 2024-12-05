@@ -29,15 +29,6 @@ def generate_test(N, dir="unusual_tests"):
         def f5():
             return [f"srli x9, x9, {shift_rnd()}"]
 
-        def f6():
-            return [f"sw x9, zero, 0", "lh zero, zero, 0"]
-
-        def f7():
-            return [f"sh x9, zero, 0", "lh zero, zero, 0"]
-
-        def f8():
-            return [f"sb x9, zero, 0", "lw zero, zero, 0"]
-
         def f9():
             return [f"sub x9, zero, x9"]
 
@@ -47,9 +38,12 @@ def generate_test(N, dir="unusual_tests"):
         def f11():
             return [f"addi x9, zero, {num_rnd()}"]
 
+        def f12():
+            return [f"addi x18, zero, {shift_rnd()}", "sra x9, x9, x18", "xor x18, x18, x18"]
+
 
         def get_command():
-            cmd = [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
+            cmd = [f1, f2, f3, f4, f5, f9, f10, f11, f12]
             f = random.choice(cmd)
             return f()
 

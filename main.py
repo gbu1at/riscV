@@ -261,7 +261,6 @@ class RiscVSimulator:
             if self.registers[rs1] == self.registers[rs2]:
                 self.pc += offset - 4
 
-
         elif opcode == "bne":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
             
@@ -307,7 +306,7 @@ class RiscVSimulator:
 
 
         elif opcode == "lh":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset,  rs1  = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -325,7 +324,7 @@ class RiscVSimulator:
             else: assert(False)
 
         elif opcode == "lw":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1  = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -339,7 +338,7 @@ class RiscVSimulator:
             else: assert(False)
 
         elif opcode == "lb":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1  = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -363,7 +362,7 @@ class RiscVSimulator:
 
 
         elif opcode == "lbu":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1 = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -380,7 +379,7 @@ class RiscVSimulator:
             else: assert(False)
 
         elif opcode == "lhu":
-            rd, rs1, offset = parts[1], parts[2], int(parts[3])
+            rd, offset, rs1 = parts[1], int(parts[2]), parts[3]
             address = self.registers[rs1] + offset
 
             self.correct_memory_address(address)
@@ -396,18 +395,6 @@ class RiscVSimulator:
                 self.bitp_lru_cache.add(address, "mem")
             else: assert(False)
 
-
-        # elif opcode == "sb":
-        #     rd, rs1, offset = parts[1], parts[2], int(parts[3])
-        #     address = self.registers[rs1] + offset
-        #     cell = self.memory.get(address)
-        #     if cell is None or cell[1] != "instruction":
-        #         self.memory[address] = (self.registers[rd] & 0xFF, "data")
-        #         if self.lru_cache.add(address):
-        #             self.lru_cache_hit_memory += 1
-        #         else:
-        #             self.lru_cache_miss_memory += 1
-        #     else: assert(False)
 
         elif opcode == "sw":
             rd, offset, rs1 = parts[1], int(parts[2]), parts[3]
@@ -724,6 +711,17 @@ b_type_instructions = {
     "bgeu":  {"funct3": "111"}
 }
 
+m_type_instructions = {
+    "mul":   {"funct3": "000"},
+    "mulh":   {"funct3": "001"},
+    "mulhsu":   {"funct3": "010"},
+    "mulhu":   {"funct3": "011"},
+    "div":  {"funct3": "100"},
+    "divu":  {"funct3": "101"},
+    "rem":  {"funct3": "110"},
+    "remu":  {"funct3": "111"}
+}
+
 registers_code = {f"x{i}": get_last_N_bits(i, 5) for i in range(32)}
 
 r_type_command = "add, sub, sll, slt, sltu, xor, srl, sra, or, and".split(", ")
@@ -732,6 +730,7 @@ s_type_command = "sb, sh, sw".split(", ")
 b_type_command = "beq, bne, blt, bge, bltu, bgeu".split(", ")
 u_type_command = "lui, auipc".split(", ")
 j_type_command = "jal, jalr".split(", ")
+m_type_command = "mul, mulh, mulhsu, mulhu, div, divu, rem, remu".split(", ")
 
 
 def reverse(s):
@@ -810,6 +809,14 @@ def encode_riscv_instruction(instruction):
                         registers_code[parts[1]]        +\
                         "1100111"
     
+    elif cmd in m_type_command:
+            res =       "0000001"                       +\
+                        registers_code[parts[3]]        +\
+                        registers_code[parts[2]]        +\
+                        m_type_instructions[cmd]["funct3"]                         +\
+                        registers_code[parts[1]]        +\
+                        "0111011"
+    
     else:
         assert(False)
 
@@ -845,7 +852,6 @@ if __name__ == "__main__":
             bin_filename = args[3]
             write_in_bin_file = True
         else: assert(False)
-
 
     instructions = machine.load_instructions(filename)
 
