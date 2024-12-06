@@ -60,6 +60,9 @@ class RiscVSimulator:
 
         opcode, parts = instruction.split(" ", 1)
 
+        if opcode == "fence":
+            return
+
         parts = parts.split(",")
         parts = [None] + [part.strip(" ") for part in parts]
 
@@ -83,20 +86,24 @@ class RiscVSimulator:
 
         elif opcode == "jalr":
             rd, rs1, offset_str = parts[1], parts[2], parts[3]
-            offset = to_int32(offset_str)
+
+            offset = extract_sign_extend_12_bits(to_int32(offset_str))
+
             self.registers[rd] = self.pc + 4
             self.pc = (self.registers[rs1] + offset) & ~1
 
         elif opcode == "beq":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
-            offset = to_int32(offset_str)
+
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
+            
             if self.registers[rs1] == self.registers[rs2]:
                 self.pc += offset - 4
 
         elif opcode == "bne":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
             
-            offset = to_int32(offset_str)
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
 
             if self.registers[rs1] != self.registers[rs2]:
                 self.pc += offset - 4
@@ -104,7 +111,7 @@ class RiscVSimulator:
         elif opcode == "blt":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
             
-            offset = to_int32(offset_str)
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
 
             if self.registers[rs1] < self.registers[rs2]:
                 self.pc += offset - 4
@@ -112,7 +119,7 @@ class RiscVSimulator:
         elif opcode == "bge":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
             
-            offset = to_int32(offset_str)
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
 
             if self.registers[rs1] >= self.registers[rs2]:
                 self.pc += offset - 4
@@ -120,7 +127,7 @@ class RiscVSimulator:
         elif opcode == "bltu":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
             
-            offset = to_int32(offset_str)
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
 
             if self.registers[rs1] < self.registers[rs2]:
                 self.pc += offset - 4
@@ -128,14 +135,14 @@ class RiscVSimulator:
         elif opcode == "bgeu":
             rs1, rs2, offset_str = parts[1], parts[2], parts[3]
 
-            offset = to_int32(offset_str)
+            offset = extract_sign_extend_13_bits(to_int32(offset_str))
 
             if self.registers[rs1] >= self.registers[rs2]:
                 self.pc += offset - 4
 
         elif opcode == "lh":
             rd, offset,  rs1  = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
 
             self.correct_memory_address(address)
 
@@ -149,7 +156,7 @@ class RiscVSimulator:
 
         elif opcode == "lw":
             rd, offset, rs1  = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
 
             self.correct_memory_address(address)
 
@@ -162,10 +169,8 @@ class RiscVSimulator:
 
         elif opcode == "lb":
             rd, offset, rs1  = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
-
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
             self.correct_memory_address(address)
-
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
                 self.registers[rd] = 0
@@ -174,13 +179,10 @@ class RiscVSimulator:
             else: assert(False)
 
 
-
         elif opcode == "lbu":
             rd, offset, rs1 = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
-
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
             self.correct_memory_address(address)
-
             cell = self.memory.get(address)
             if cell is None or cell[1] != "mem":
                 self.registers[rd] = 0
@@ -190,8 +192,7 @@ class RiscVSimulator:
 
         elif opcode == "lhu":
             rd, offset, rs1 = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
-
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
             self.correct_memory_address(address)
 
             cell = self.memory.get(address)
@@ -204,8 +205,7 @@ class RiscVSimulator:
 
         elif opcode == "sw":
             rd, offset, rs1 = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
-
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
 
 
             self.correct_memory_address(address)
@@ -221,7 +221,7 @@ class RiscVSimulator:
 
         elif opcode == "sb":
             rd, offset, rs1  = parts[1], to_int32(parts[2]), parts[3]
-            address = self.registers[rs1] + offset
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
 
             self.correct_memory_address(address)
 
@@ -234,8 +234,7 @@ class RiscVSimulator:
 
         elif opcode == "sh":
             rd, offset, rs1 = parts[1], to_int32(parts[2]), parts[3]
-
-            address = self.registers[rs1] + offset
+            address = self.registers[rs1] + extract_sign_extend_12_bits(offset)
             self.correct_memory_address(address)
 
             cell = self.memory.get(address)
@@ -247,32 +246,32 @@ class RiscVSimulator:
 
         elif opcode == "addi":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm)
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = to_int32(self.registers[rs1] + imm)
 
         elif opcode == "slti":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm)
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = to_int32(self.registers[rs1] < imm)
 
         elif opcode == "sltiu":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm) | 0xFFFFF000
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = to_int32((self.registers[rs1] & 0xFFFFFFFF) < imm)
         
         elif opcode == "xori":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm)
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = self.registers[rs1] ^ imm
                 
         elif opcode == "ori":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm)
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = self.registers[rs1] | imm
                 
         elif opcode == "andi":
             rd, rs1, imm = parts[1], parts[2], parts[3]
-            imm = to_int32(imm)
+            imm = extract_sign_extend_12_bits(to_int32(imm))
             self.registers[rd] = self.registers[rs1] & imm
                 
         elif opcode == "slli":
@@ -368,7 +367,7 @@ class RiscVSimulator:
             if self.registers[rs2] == 0:
                 self.registers[rd] = -1
             else:
-                self.registers[rd] = to_int32(self.registers[rs1] / self.registers[rs2])
+                self.registers[rd] = to_int32(self.registers[rs1] // self.registers[rs2])
 
         elif opcode == "divu":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]

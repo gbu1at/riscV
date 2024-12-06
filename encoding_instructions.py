@@ -4,11 +4,17 @@ from functions import *
 
 def encode_riscv_instruction(instruction):
 
-    if instruction in ["ecall", "ebreak"]:
+    if instruction in ["ecall", "ebreak", "pause"]:
         if instruction == "ebreak":
             return "00000000000100000000000001110011"
-        else:
+        elif instruction == "ecall":
             return "00000000000000000000000001110011"
+        elif instruction == "pause":
+            return "00000001000000000000000000001111"
+        elif instruction == "fence":
+            return "10000011001100000000000000001111"
+        else:
+            return "--------------------------------"
 
     cmd, parts = instruction.split(" ", 1)
 

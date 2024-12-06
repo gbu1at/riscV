@@ -54,3 +54,22 @@ def clean_text(text):
     final_text = '\n'.join(cleaned_lines)
 
     return final_text
+
+
+def extract_sign_extend_12_bits(number):
+    last_12_bits = number & 0xFFF
+
+    if last_12_bits & 0x800:
+        last_12_bits -= 0x1000
+    
+    return last_12_bits
+
+
+
+def extract_sign_extend_13_bits(number):
+    last_13_bits = number & 0x1FFF
+    
+    if last_13_bits & 0x1000:
+        last_13_bits -= 0x2000
+    
+    return last_13_bits
