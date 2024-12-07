@@ -3,24 +3,18 @@ import random
 import sys
 from gen_rnd_name import generate_funny_name
 import sys
-sys.path.insert(1, '../')
+sys.path.insert(1, '../RiskV')
 from RiskVSimulator import *
 import os
 
 
 def generate_test(N, dir="unusual_tests"):
-    
-    os.system(f"mkdir {dir} 2>/dev/null || true")
 
     def get_generate_instruction(N):
-        X = random.randint(0, 10000)
-
-        def shift_rnd():
-            return random.randint(0, 5)
+        X = random.randint(0, 2 ** 11)
 
         def num_rnd():
-            return random.randint(0, 2**20)
-
+            return random.randint(-2**10, 2**10)
 
         def f_xori():
             return [f"xori x9, x9, {num_rnd()}"]
@@ -218,8 +212,8 @@ def generate_test(N, dir="unusual_tests"):
         instructions.append(f"addi x18, zero, {RESULT}")
         instructions.append(f"beq x9, x18, 10000")
 
-        for i in range(1000):
-            instructions.append("addi zero, zero, 0")
+        for i in range(8):
+            instructions.append("sw zero, 0, zero")
 
         return instructions
 
@@ -255,12 +249,15 @@ def generate_test(N, dir="unusual_tests"):
             file.write(instruction + "\n")
 
 
-_, N, M, SEED = sys.argv
+_, N, M, SEED, dir_name = sys.argv
 M = int(M)
 N = int(N)
 SEED = int(SEED)
 
 random.seed(SEED)
 
+os.system(f"rm -rf {dir_name} 2>/dev/null || true")
+os.system(f"mkdir {dir_name} 2>/dev/null || true")
+
 for i in range(N):
-    generate_test(M)
+    generate_test(M, dir_name)

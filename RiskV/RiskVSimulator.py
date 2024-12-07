@@ -3,6 +3,9 @@ from functions import *
 from setting import *
 
 
+DEBUG = True
+# DEBUG = False
+
 class RiscVSimulator:
     def __init__(self):
         self.registers = {}
@@ -32,30 +35,47 @@ class RiscVSimulator:
         return instructions
     
     def correct_memory_address(self, address):
-        assert(MEM_SIZE > address and address >= 0)
+        pass
 
     def execute(self):
+
         self.pc = 0x10000
+
+        file = open("file.out", "w")
+
         while True:
 
             self.correct_memory_address(self.pc)
-
-
             data = self.memory.get(self.pc)
-            if data is None or data[1] != "instruction":
+
+            if data is None or data[1] != "instruction" or self.registers["x1"] == self.pc:
                 return self.lru_cache.get_info(), self.bitp_lru_cache.get_info()
+
+            if DEBUG:
+                file.write("PC: " + str(self.pc) + "\n")
+                file.write("Cache: " + str(self.lru_cache.cache_hit_instruction) + " " + str(self.lru_cache.cache_total_instruction - self.lru_cache.cache_hit_instruction) + " | ")
+                file.write(str(self.bitp_lru_cache.cache_hit_instruction) + " " + str(self.bitp_lru_cache.cache_total_instruction - self.bitp_lru_cache.cache_hit_instruction) + "\n")
+                for x in self.registers:
+                    file.write(str(self.registers[x]) + " ")
+                file.write("\n")
+                file.write("\n")
 
             self.lru_cache.add(self.pc, "inst")
             self.bitp_lru_cache.add(self.pc, "inst")
 
             instruction = data[0]
 
+
             self.parse_and_execute(instruction)
+        
+            # print(instruction)
+            # print("x9:", self.registers["x9"], " x18:", self.registers["x18"])
+
             self.pc += 4
 
 
     def parse_and_execute(self, instruction: str):
-        if instruction in ["ecall", "ebreak"]:
+        if instruction in ["ecall", "ebreak", "fence.tso"]:
             return
 
         opcode, parts = instruction.split(" ", 1)
@@ -76,7 +96,7 @@ class RiscVSimulator:
         elif opcode == "auipc":
             rd, imm_str = parts[1], parts[2]
             imm = to_int32(imm_str)
-            self.registers[rd] = (self.pc + (imm << 12)) & 0xFFFFFFFF
+            self.registers[rd] = to_int32((self.pc + (imm << 12)) & 0xFFFFFFFF)
 
         elif opcode == "jal":
             rd, offset_str = parts[1], parts[2]
@@ -278,18 +298,19 @@ class RiscVSimulator:
             rd, rs1, shift_str = parts[1], parts[2], parts[3]
             shift = to_int32(shift_str) & 0b11111
             
-            self.registers[rd] = self.registers[rs1] << shift
+            self.registers[rd] = to_int32(self.registers[rs1] << shift)
                 
         elif opcode == "srli":
             rd, rs1, shift_str = parts[1], parts[2], parts[3]
             shift = to_int32(shift_str) & 0b11111
             self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) >> shift
 
-                
         elif opcode == "srai":
             rd, rs1, shift_str = parts[1], parts[2], parts[3]
             shift = to_int32(shift_str) & 0b11111
-            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) >> shift
+            sign = (self.registers[rs1] & 0x80000000) >> 31
+            self.registers[rd] = to_int32(((self.registers[rs1] & 0xFFFFFFFF) >> shift) | \
+                                ((((1 << shift) - 1) * sign) << (32 - shift)))
         
         elif opcode == "add":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
@@ -302,7 +323,7 @@ class RiscVSimulator:
         elif opcode == "sll":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             shift = self.registers[rs2] & 0x1F
-            self.registers[rd] = self.registers[rs1] << shift
+            self.registers[rd] = to_int32(self.registers[rs1] << shift)
                 
         elif opcode == "slt":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
@@ -319,12 +340,14 @@ class RiscVSimulator:
         elif opcode == "srl":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             shift = self.registers[rs2] & 0x1F
-            self.registers[rd] = self.registers[rs1] >> shift
+            self.registers[rd] = to_int32((self.registers[rs1] & 0xFFFFFFFF) >> shift)
                 
         elif opcode == "sra":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             shift = self.registers[rs2] & 0x1F
-            self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) >> shift
+            sign = (self.registers[rs1] & 0x80000000) >> 31
+            self.registers[rd] = to_int32(((self.registers[rs1] & 0xFFFFFFFF) >> shift) | 
+                                          ((((1 << shift) - 1) * sign) << (32 - shift)))
                 
         elif opcode == "or":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
@@ -350,24 +373,25 @@ class RiscVSimulator:
         elif opcode == "mulh":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             result = self.registers[rs1] * self.registers[rs2]
-            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+            self.registers[rd] = to_int32((result >> 32) & 0xFFFFFFFF)
 
         elif opcode == "mulhsu":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             result = self.registers[rs1] * (self.registers[rs2] & 0xFFFFFFFF)
-            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+            self.registers[rd] = to_int32((result >> 32) & 0xFFFFFFFF)
 
         elif opcode == "mulhu":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             result = (self.registers[rs1] & 0xFFFFFFFF) * (self.registers[rs2] & 0xFFFFFFFF)
-            self.registers[rd] = (result >> 32) & 0xFFFFFFFF
+            self.registers[rd] = to_int32((result >> 32) & 0xFFFFFFFF)
 
         elif opcode == "div":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             if self.registers[rs2] == 0:
                 self.registers[rd] = -1
             else:
-                self.registers[rd] = to_int32(self.registers[rs1] // self.registers[rs2])
+                sign = 1 if self.registers[rs1] * self.registers[rs2] >= 0 else -1
+                self.registers[rd] = to_int32(sign * (abs(self.registers[rs1]) // abs(self.registers[rs2])))
 
         elif opcode == "divu":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
@@ -379,16 +403,23 @@ class RiscVSimulator:
         elif opcode == "rem":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             if self.registers[rs2] == 0:
-                self.registers[rd] = -1
+                self.registers[rd] = self.registers[rs1]
             else:
-                self.registers[rd] = to_int32(self.registers[rs1] % self.registers[rs2])
-
+                a = self.registers[rs1]
+                b = self.registers[rs2]
+                
+                result = a % b
+                if (a < 0 and result > 0) or (a > 0 and result < 0):
+                    result -= b
+                
+                self.registers[rd] = result
+                
         elif opcode == "remu":
             rd, rs1, rs2 = parts[1], parts[2], parts[3]
             if self.registers[rs2] == 0:
-                self.registers[rd] = -1
+                self.registers[rd] = self.registers[rs1]
             else:
-                self.registers[rd] = (self.registers[rs1] & 0xFFFFFFFF) % (self.registers[rs2] & 0xFFFFFFFF)
+                self.registers[rd] = to_int32((self.registers[rs1] & 0xFFFFFFFF) % (self.registers[rs2] & 0xFFFFFFFF))
             
         else:
             print()

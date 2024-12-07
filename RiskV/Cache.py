@@ -82,18 +82,15 @@ class Cache:
             self.cache_total_memory += 1
             if hit:
                 self.cache_hit_memory += 1
-        else: assert(False)
 
         return hit
     
     def get_info(self):
-
         cache_total = self.cache_total_memory + self.cache_total_instruction
         cache_hit = self.cache_hit_instruction + self.cache_hit_memory
         all_percent = 100 * cache_hit / cache_total
         instruction_percent = 100 * self.cache_hit_instruction / self.cache_total_instruction
         memory_percent = float("nan") if self.cache_total_memory == 0 else 100 * self.cache_hit_memory / self.cache_total_memory
-
         return all_percent, instruction_percent, memory_percent
 
 

@@ -6,7 +6,6 @@ from encoding_instructions import *
 from functions import *
 
 
-
 if __name__ == "__main__":
     machine = RiscVSimulator()
     _, *args = sys.argv
@@ -20,7 +19,6 @@ if __name__ == "__main__":
     if len(args) == 2:
         if args[0] == "--asm":
             filename = args[1]
-        else: assert(False)
 
     if len(args) == 4:
         if args[0] == "--asm" and args[2] == "--bin":
@@ -31,7 +29,6 @@ if __name__ == "__main__":
             filename = args[3]
             bin_filename = args[1]
             write_in_bin_file = True
-        else: assert(False)
 
     instructions = machine.load_instructions(filename)
 
@@ -47,10 +44,11 @@ if __name__ == "__main__":
     print(result)
 
 
+
     if write_in_bin_file:
         with open(bin_filename, "w") as file:
             for inst in instructions:
+                # print(inst)
                 inst_bin_str = encode_riscv_instruction(inst)
                 inst_hex_str = binary_to_hex(inst_bin_str)
                 file.write(inst_hex_str.lower() + "\n")
-

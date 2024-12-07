@@ -12,14 +12,12 @@ def to_int32(x):
 
 
 def get_last_N_bits(number, N):
-    assert(N > 0)
     last_N_bits = to_int32(number) & ((1 << N) - 1)
     binary_string = bin(last_N_bits)[2:]
     padded_bits = binary_string.zfill(N)
     return padded_bits
 
 def get_segment_bits(number:str, l, r):
-    assert(r > l)
     seg_bits = ((to_int32(number) + 2 ** 33) & ((1 << r) - 1)) >> l
     binary_string = bin(seg_bits)[2:]
     padded_bits = binary_string.zfill(r - l)
@@ -31,7 +29,6 @@ def reverse(s):
 
 
 def binary_to_hex(binary_string):
-    assert(len(binary_string) == 32)
     byte_array = reversed(bytearray(int(binary_string[i:i + 8], 2) for i in range(0, len(binary_string), 8)))
     hex_string = ' '.join(f"{byte:02X}" for byte in byte_array)
     return hex_string
@@ -59,9 +56,8 @@ def clean_text(text):
 def extract_sign_extend_12_bits(number):
     last_12_bits = number & 0xFFF
 
-    if last_12_bits & 0x800:
-        last_12_bits -= 0x1000
-    
+    last_12_bits = last_12_bits - 2 * (last_12_bits & 0x800)
+
     return last_12_bits
 
 

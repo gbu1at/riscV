@@ -126,14 +126,6 @@ r_type_instructions = {
     "sra":   {"funct7": "0100000", "funct3": "101"},
     "or":    {"funct7": "0000000", "funct3": "110"},
     "and":   {"funct7": "0000000", "funct3": "111"},
-    "mul":   {"funct7":"0000001","funct3":"000"},
-    "div":   {"funct7":"0000010","funct3":"100"},
-    "rem":   {"funct7":"0000011","funct3":"100"},
-    "mulh":  {"funct7":"0000100","funct3":"000"},
-    "mulhsu":{"funct7":"0000101","funct3":"000"},
-    "mulhu": {"funct7":"0000110","funct3":"000"},
-    "divu":  {"funct7":"0000111","funct3":"100"},
-    "remu":  {"funct7":"0001000","funct3":"100"}
 }
 
 i_type_instructions = {
@@ -167,14 +159,14 @@ b_type_instructions = {
 }
 
 m_type_instructions = {
-    "mul":   {"funct3": "000"},
-    "mulh":   {"funct3": "001"},
-    "mulhsu":   {"funct3": "010"},
-    "mulhu":   {"funct3": "011"},
-    "div":  {"funct3": "100"},
-    "divu":  {"funct3": "101"},
-    "rem":  {"funct3": "110"},
-    "remu":  {"funct3": "111"}
+    "mul":   {"funct7":"0000001","funct3":"000"},
+    "div":   {"funct7":"0000010","funct3":"100"},
+    "rem":   {"funct7":"0000011","funct3":"110"},
+    "mulh":  {"funct7":"0000100","funct3":"001"},
+    "mulhsu":{"funct7":"0000101","funct3":"010"},
+    "mulhu": {"funct7":"0000110","funct3":"011"},
+    "divu":  {"funct7":"0000111","funct3":"101"},
+    "remu":  {"funct7":"0001000","funct3":"111"}
 }
 
 si_type_instructions = {

@@ -11,12 +11,21 @@ def encode_riscv_instruction(instruction):
             return "00000000000000000000000001110011"
         elif instruction == "pause":
             return "00000001000000000000000000001111"
-        elif instruction == "fence":
-            return "10000011001100000000000000001111"
         else:
             return "--------------------------------"
 
     cmd, parts = instruction.split(" ", 1)
+
+    if cmd == "fence":
+        cmd, parts = instruction.split(" ", 1)
+        parts = parts.split(",")
+        p, s = parts[0], parts[1]
+        x = 'iorw'
+        p = p
+        s = s
+        p = ''.join(['1' if x[i] in p else '0' for i in range(4)])
+        s = ''.join(['1' if x[i] in s else '0' for i in range(4)])
+        return '0000' + p + s + '00000000000000001111'
 
     parts = parts.split(",")
     parts = [None] + [part.strip(" ") for part in parts]
@@ -93,7 +102,7 @@ def encode_riscv_instruction(instruction):
                         registers_code[parts[2]]        +\
                         m_type_instructions[cmd]["funct3"]                         +\
                         registers_code[parts[1]]        +\
-                        "0111011"
+                        "0110011"
     
     elif cmd in si_type_command:
         bits = reverse(get_segment_bits(parts[3], 0, 5))
@@ -103,8 +112,6 @@ def encode_riscv_instruction(instruction):
                         si_type_instructions[cmd]["funct3"] +\
                         registers_code[parts[1]]                  +\
                         "0010011"
-    
-    else:
-        assert(False)
+
 
     return res
