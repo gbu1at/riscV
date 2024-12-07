@@ -76,7 +76,7 @@ def encode_riscv_instruction(instruction):
 
     elif cmd in u_type_command:
         bits = reverse(get_segment_bits(parts[2], 0, 32))
-        res =       reverse(bits[12:32])       +\
+        res =       reverse(bits[0:20])       +\
                     registers_code[parts[1]]                    +\
                     cmd_opcode
         
